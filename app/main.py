@@ -1,12 +1,10 @@
-from typing import Optional
-from fastapi import FastAPI, Response, status, HTTPException
-from fastapi.params import Body
-from pydantic import BaseModel, Field
-from random import randrange
+from fastapi import Depends, FastAPI, Response, status, HTTPException
 from faker import Faker
-from pprint import pprint
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from . import models, schemas
+from .database import engine, get_db
+from sqlalchemy.orm import Session
 
 fake = Faker()
 app = FastAPI()
@@ -26,30 +24,7 @@ except Exception as err:
     print(f"Connection to the database has failed \nError: {err}")
 
 
-class Post(BaseModel):
-    title: str = Field(min_length=3)
-    content: str
-    published: bool = True
-    rating: Optional[int] = Field(le=10, ge=0, default=None)
-
-
-# myposts = [
-#     {
-#         "id": 1,
-#         "title": fake.name(),
-#         "content": fake.text(),
-#         "rating": randrange(0, 10),
-#         "published": True,
-#     },
-#     {
-#         "id": 2,
-#         "title": fake.name(),
-#         "content": fake.text(),
-#         "rating": randrange(0, 10),
-#         "published": True,
-#     },
-# ]
-# pprint(myposts)
+models.Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")
@@ -57,28 +32,34 @@ async def root():
     return {"message": "Hello World"}
 
 
+@app.get("/sqlAl")
+def test_post(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
+    return {"message": posts}
+
+
 @app.get("/all-post")
-def getAllPost():
-    cursor.execute("""SELECT * FROM POSTS""")
-    posts = cursor.fetchall()
-    return posts
+def getAllPost(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
+    return {"message": posts}
 
 
-@app.post("/create-post", status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post):
-    cursor.execute(
-        """INSERT INTO posts(title,content,published) VALUES (%s, %s , %s) RETURNING *""",
-        (post.title, post.title, post.published),
-    )
-    new_post = cursor.fetchone()
-    conn.commit()
-    return {"data": new_post}
+@app.post(
+    "/create-post",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.PostResponse,
+)
+def create_posts(post: schemas.Post, db: Session = Depends(get_db)):
+    new_post = models.Post(**post.dict())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return new_post
 
 
 @app.get("/post/{id}")
-def getPostById(id: int):
-    cursor.execute("""SELECT * FROM posts WHERE id=%s""", (str(id),))
-    post = cursor.fetchone()
+def getPostById(id: int, db: Session = Depends(get_db)):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -88,10 +69,36 @@ def getPostById(id: int):
 
 
 @app.delete("/post/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int):
-    cursor.execute("""DELETE FROM POSTS WHERE id=%s * RETURNING *""", (str(id),))
-    deletedPost = cursor.fetchone()
-    if deletedPost == None:
+def delete_post(id: int, db: Session = Depends(get_db)):
+    post = db.query(models.Post).filter(models.Post.id == id)
+    if post.first() == None:
         raise HTTPException(status_code=404, detail=f"There is no post with Id {id}")
-    conn.commit()
+    post.delete(synchronize_session=False)
+    db.commit()
+
     return Response(status_code=204)
+
+
+@app.put("/posts/{id}")
+def update_post(updated_post: schemas.Post, id: int, db: Session = Depends(get_db)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    post = post_query.first()
+    if post == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"post with id: {id} does not exist",
+        )
+    post_query.update(updated_post.dict(), synchronize_session=False)
+    db.commit()
+    return {"data": post_query.first()}
+
+
+@app.post(
+    "/create-post",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.User,
+)
+def createUser(
+    post: schemas.user_create_account_request, db: Session = Depends(get_db)
+):
+    pass
