@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr
 
 
@@ -26,3 +27,8 @@ class User(BaseModel):
 
 class user_create_account_request(User):
     password: str = Field(min_length=4)
+
+
+class fetch_user_response(User):
+    created_at: datetime
+    id: str
