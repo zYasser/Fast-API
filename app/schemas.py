@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 
 class Post(BaseModel):
@@ -17,9 +17,12 @@ class PostResponse(BaseModel):
 
 
 class User(BaseModel):
-    email = str
-    username = str
+    email: EmailStr
+    username: str = Field(min_length=3)
+
+    class Config:
+        orm_mode = True
 
 
 class user_create_account_request(User):
-    password: str
+    password: str = Field(min_length=4)

@@ -3,6 +3,7 @@ from faker import Faker
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from . import models, schemas
+from .utils import hash
 from .database import engine, get_db
 from sqlalchemy.orm import Session
 
@@ -94,11 +95,16 @@ def update_post(updated_post: schemas.Post, id: int, db: Session = Depends(get_d
 
 
 @app.post(
-    "/create-post",
+    "/user",
     status_code=status.HTTP_201_CREATED,
     response_model=schemas.User,
 )
 def createUser(
-    post: schemas.user_create_account_request, db: Session = Depends(get_db)
+    user: schemas.user_create_account_request, db: Session = Depends(get_db)
 ):
-    pass
+    user.password = hash(user.password)
+    new_user = models.User(**user.dict())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
