@@ -32,3 +32,8 @@ class user_create_account_request(User):
 class fetch_user_response(User):
     created_at: datetime
     id: str
+
+
+class login(BaseModel):
+    email: EmailStr
+    password: str
