@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 router = APIRouter(tags=["auth"])
 
 
-@router.post("/login")
+@router.post("/login", response_model=schemas.Token)
 def login(
     user_credentials: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
@@ -23,12 +23,12 @@ def login(
     )
     if not user:
         raise HTTPException(
-            status_code=404,
+            status_code=403,
             detail="Make Sure you entered the correct email and password",
         )
     if not utils.verfiy_password(user.password, user_credentials.password):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_UNAUTHORIZED,
             detail="Make Sure you entered the correct email and password",
         )
 
